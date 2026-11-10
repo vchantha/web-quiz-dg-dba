@@ -34,7 +34,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Open **http://localhost:8080** (or your server IP on port 8080).
+Open **http://YOUR_SERVER_IP:8080** from another computer on the same network, or use your public IP if firewall/NAT rules permit. `0.0.0.0` is only the listener bind address, **not** a URL to browse. The web container publishes port 8080 on every IPv4 interface; frontend and API are both served through that port, while Django and PostgreSQL remain on a private Docker network.
 
 ### Create administrator and candidate users
 
@@ -149,10 +149,36 @@ docker compose build --no-cache backend
 docker compose up -d --force-recreate backend web
 docker compose ps
 docker compose logs --tail=80 backend
-root / PnzU2G3u80MR
-user1: B62HaI3l606O
-user2: J43ZGQ1u8he9
-user3: oNRcg7Q5z1pc
 ```
 
 **Do not run** `docker compose down -v`: it deletes the PostgreSQL volume and candidate data.
+
+## Remote IP / domain access and API troubleshooting
+
+The standard deployment publishes **0.0.0.0:8080:80**, so the web portal and Django API are reachable at:
+
+- Portal: `http://YOUR_SERVER_IP:8080/`
+- API health: `http://YOUR_SERVER_IP:8080/api/health`
+- Login/session API: `http://YOUR_SERVER_IP:8080/api/auth/session`
+- Django Admin: `http://YOUR_SERVER_IP:8080/admin/`
+
+The app uses **same-origin** requests; no cross-origin API port is necessary. Nginx preserves the incoming Host **including the :8080 port** so Django's CSRF origin check matches.
+
+`QUIZ_ALLOW_IP_HOSTS=1` (default) accepts syntactically valid IPv4 and IPv6 addresses in request Host headers. The `HostValidationMiddleware` denies unknown **DNS names**; set `DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,backend,testserver,quiz.example.com` when using a custom hostname. Setting `DJANGO_ALLOWED_HOSTS=*` is not recommended.
+
+For a real internet-facing installation, terminate HTTPS at a reverse proxy/load balancer, set `DJANGO_CSRF_TRUSTED_ORIGINS=https://quiz.example.com`, `SESSION_COOKIE_SECURE=1`, `CSRF_COOKIE_SECURE=1`, and configure a trusted `X-Forwarded-Proto` chain. Avoid transmitting candidate passwords over plaintext HTTP.
+
+If you see an API error in the UI, try:
+
+```bash
+docker compose ps
+docker compose logs --tail=100 web backend
+curl -i http://YOUR_SERVER_IP:8080/api/health
+curl -i http://YOUR_SERVER_IP:8080/api/auth/session
+```
+
+A healthy response from `/api/health` is JSON `{"status": "ok"}`. If a browser displays the UI but API fails, check host/CSRF and proxy configuration. For LAN access, allow inbound TCP 8080 in your server firewall; for internet access, set NAT/security-group rules and use HTTPS.
+
+**Network security:** Backend port 8000 and PostgreSQL port 5432 are intentionally **not published** to `0.0.0.0`. All candidate-facing services, including API and Django Admin, are available behind the public web endpoint. Do not publish the database publicly.
+
+**Credential incident:** An older README revision accidentally included example plaintext passwords. They have been removed from the current file; because this is a public repository, any matching real accounts must have their passwords rotated immediately. Removing them from the latest commit does not erase Git history.

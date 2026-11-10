@@ -9,7 +9,18 @@ if not SECRET_KEY and not DEBUG:
     raise RuntimeError("Set DJANGO_SECRET_KEY in .env")
 if not SECRET_KEY:
     SECRET_KEY = "dev-only-unsafe-secret-key-change-me"
-ALLOWED_HOSTS = [x.strip() for x in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,backend").split(",") if x.strip()]
+# Public access by literal server IPv4/IPv6 is supported without knowing the IP at build time.
+# A custom first middleware validates raw Host headers before accepting requests.
+QUIZ_STATIC_ALLOWED_HOSTS = [
+    x.strip() for x in os.environ.get(
+        "DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,backend,testserver"
+    ).split(",") if x.strip()
+]
+QUIZ_ALLOW_IP_HOSTS = os.environ.get("QUIZ_ALLOW_IP_HOSTS", "1") == "1"
+# Django's built-in allowlist needs "*" to admit unknown IPs, so
+# HostValidationMiddleware MUST validate each request against the explicit
+# domain allowlist or a syntactically valid IP address.
+ALLOWED_HOSTS = ["*"] if QUIZ_ALLOW_IP_HOSTS else QUIZ_STATIC_ALLOWED_HOSTS
 CSRF_TRUSTED_ORIGINS = [x.strip() for x in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "http://localhost:8080").split(",") if x.strip()]
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
@@ -17,6 +28,7 @@ INSTALLED_APPS = [
     "assessment",
 ]
 MIDDLEWARE = [
+    "config.hosts.HostValidationMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
