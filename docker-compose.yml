@@ -1,0 +1,49 @@
+name: dba-governance-quiz
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Define POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?Define POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    networks: [internal]
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/api/health',timeout=4)"]
+      interval: 15s
+      timeout: 6s
+      retries: 8
+      start_period: 30s
+    networks: [internal]
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "${QUIZ_HTTP_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [internal]
+volumes:
+  postgres_data:
+networks:
+  internal:
+    driver: bridge
