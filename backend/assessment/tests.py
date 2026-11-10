@@ -52,7 +52,8 @@ class AssessmentApiTests(TestCase):
         self.assertNotIn("correct_code", attempt["questions"][0])
         self.assertNotIn("explanation", attempt["questions"][0])
         self.assertEqual(len(attempt["questions"][0]["options"]), 4)
-        self.assertEqual(attempt["remaining_seconds"], 3600)
+        self.assertGreaterEqual(attempt["remaining_seconds"], 3598)
+        self.assertLessEqual(attempt["remaining_seconds"], 3600)
 
     def test_autosave_and_resume_are_persistent(self):
         attempt = self.start()

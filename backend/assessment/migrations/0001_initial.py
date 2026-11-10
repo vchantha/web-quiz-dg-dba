@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
     dependencies = [migrations.swappable_dependency(settings.AUTH_USER_MODEL)]
     operations = [
         migrations.CreateModel(name="Quiz", fields=[
-            ("id", models.BigAutoField(primary_key=True, serialize=False)),
+            ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
             ("slug", models.SlugField(max_length=100, unique=True)),
             ("title", models.CharField(max_length=240)),
             ("description", models.TextField(blank=True)),
@@ -19,7 +19,7 @@ class Migration(migrations.Migration):
             ("created_at", models.DateTimeField(auto_now_add=True)),
         ]),
         migrations.CreateModel(name="Question", fields=[
-            ("id", models.BigAutoField(primary_key=True, serialize=False)),
+            ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
             ("position", models.PositiveSmallIntegerField()),
             ("domain", models.CharField(choices=[("DBA", "DBA"), ("Data Governance", "Data Governance")], max_length=32)),
             ("topic", models.CharField(max_length=120)),
@@ -31,13 +31,13 @@ class Migration(migrations.Migration):
             ("quiz", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="questions", to="assessment.quiz")),
         ], options={"ordering": ["position"]}),
         migrations.CreateModel(name="Option", fields=[
-            ("id", models.BigAutoField(primary_key=True, serialize=False)),
+            ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
             ("code", models.CharField(max_length=1)),
             ("text", models.TextField()),
             ("question", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="options", to="assessment.question")),
         ], options={"ordering": ["code"]}),
         migrations.CreateModel(name="Attempt", fields=[
-            ("id", models.BigAutoField(primary_key=True, serialize=False)),
+            ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
             ("status", models.CharField(choices=[("in_progress", "In progress"), ("submitted", "Submitted"), ("expired", "Expired")], default="in_progress", max_length=20)),
             ("started_at", models.DateTimeField()),
             ("expires_at", models.DateTimeField()),
@@ -50,14 +50,14 @@ class Migration(migrations.Migration):
             ("user", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="quiz_attempts", to=settings.AUTH_USER_MODEL)),
         ], options={"ordering": ["-started_at"]}),
         migrations.CreateModel(name="Answer", fields=[
-            ("id", models.BigAutoField(primary_key=True, serialize=False)),
+            ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
             ("question_id_snapshot", models.PositiveIntegerField()),
             ("selected_code", models.CharField(max_length=1)),
             ("updated_at", models.DateTimeField(auto_now=True)),
             ("attempt", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="answers", to="assessment.attempt")),
         ]),
         migrations.CreateModel(name="AuditEvent", fields=[
-            ("id", models.BigAutoField(primary_key=True, serialize=False)),
+            ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
             ("event", models.CharField(max_length=50)),
             ("metadata", models.JSONField(blank=True, default=dict)),
             ("created_at", models.DateTimeField(auto_now_add=True)),
