@@ -41,6 +41,14 @@ class AssessmentApiTests(TestCase):
         self.assertEqual(sum(Question.objects.values_list("points", flat=True)), 100)
         self.assertEqual(self.quiz.duration_minutes, 60)
 
+    def test_attempt_quota_metadata_changes_after_start(self):
+        before = self.client.get("/api/assessments").json()
+        self.assertEqual(before["max_attempts"], 1)
+        self.assertEqual(before["attempts_used"], 0)
+        self.start()
+        after = self.client.get("/api/assessments").json()
+        self.assertEqual(after["attempts_used"], 1)
+
     def test_seed_is_idempotent(self):
         call_command("seed_quiz", verbosity=0)
         self.assertEqual(self.quiz.questions.count(), 25)

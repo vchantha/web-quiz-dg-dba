@@ -103,7 +103,7 @@ function LoginPage({ onLogin, busy, error }) {
   </div><div className="auth-copyright">DBA & Data Governance · Candidate Assessment Portal</div></div>;
 }
 
-function OverviewPage({ quiz, onStart, isResuming, hasResult, onResult }) {
+function OverviewPage({ quiz, onStart, isResuming, hasResult, onResult, canStart }) {
   const dba = quiz.domains.find(d=>d.name==='DBA');
   const dg = quiz.domains.find(d=>d.name==='Data Governance');
   return <div className="page-stack">
@@ -143,14 +143,14 @@ function OverviewPage({ quiz, onStart, isResuming, hasResult, onResult }) {
       </div>
     </section>
     <div className="page-cta">
-      <button className="btn primary large" onClick={onStart}><PlayCircle size={22}/>
-        {isResuming?'Resume Assessment':'Start Assessment'}<ArrowRight size={21}/></button>
+      {canStart && <button className="btn primary large" onClick={onStart}><PlayCircle size={22}/>
+        {isResuming?'Resume Assessment':'Start Assessment'}<ArrowRight size={21}/></button>}
       {hasResult && <button className="btn outline" onClick={onResult}><BarChart3 size={19}/> View Result</button>}
     </div>
   </div>;
 }
 
-function InstructionsPage({ quiz, onStart, isResuming }) {
+function InstructionsPage({ quiz, onStart, isResuming, canStart, hasResult, onResult }) {
   return <div className="page-stack">
     <section className="page-heading">
       <div><div className="eyebrow">BEFORE YOU BEGIN</div><h1>Quiz Instructions</h1>
@@ -182,7 +182,10 @@ function InstructionsPage({ quiz, onStart, isResuming }) {
     </div>
     <section className="ready-banner"><div className="ready-icon"><Flag size={30}/></div>
       <div><h2>Ready to begin?</h2><p>You can complete the quiz at your own pace within the time limit.</p></div>
-      <button className="btn primary" onClick={onStart}><PlayCircle size={21}/>{isResuming?'Resume Quiz':'Start Quiz'}<ArrowRight size={19}/></button>
+      <button className="btn primary" onClick={canStart ? onStart : onResult} disabled={!canStart && !hasResult}>
+        {canStart ? <PlayCircle size={21}/> : <BarChart3 size={21}/>}
+        {canStart ? (isResuming ? 'Resume Quiz' : 'Start Quiz') : (hasResult ? 'View My Result' : 'Contact Assessor')}
+        <ArrowRight size={19}/></button>
     </section>
   </div>;
 }
@@ -247,7 +250,7 @@ function QuizPage({ attempt, currentIndex, setCurrentIndex, onAnswer, saving, on
   </div>;
 }
 
-function ResultPage({ data, onOverview, showReview, setShowReview, onRetake }) {
+function ResultPage({ data, onOverview, showReview, setShowReview, onRetake, canRetake }) {
   if (!data) return <section className="panel empty-state"><BarChart3 size={46}/><h2>No results yet</h2>
     <p>Your completed assessment and scores will appear here.</p><button className="btn primary" onClick={onOverview}>Go to overview <ArrowRight size={18}/></button></section>;
   const wrong = data.total_questions - data.correct_count;
@@ -295,7 +298,7 @@ function ResultPage({ data, onOverview, showReview, setShowReview, onRetake }) {
     <div className="page-cta">
       {data.review_available && <button className="btn primary" onClick={()=>setShowReview(!showReview)}>
         <FileText size={19}/>{showReview?'Hide Answers':'Review Answers'}</button>}
-      <button className="btn outline" onClick={onRetake}><RotateCcw size={18}/> Retake Quiz</button>
+      {canRetake && <button className="btn outline" onClick={onRetake}><RotateCcw size={18}/> Retake Quiz</button>}
       <button className="btn outline" onClick={()=>window.print()}><Download size={19}/> Save Result as PDF</button>
     </div>
     <p className="result-note">Results are confidential and available only to you and authorized assessors.</p>
@@ -340,6 +343,7 @@ export default function App() {
   const [attempt, setAttempt] = useState(null);
   const [result, setResult] = useState(null);
   const [resultId, setResultId] = useState(null);
+  const [remainingAttempts, setRemainingAttempts] = useState(0);
   const [adminData, setAdminData] = useState(null);
   const [error, setError] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -352,6 +356,7 @@ export default function App() {
   async function hydrate() {
     const [a, state] = await Promise.all([api('/assessments'),api('/attempts/current')]);
     setQuiz(a.assessment);
+    setRemainingAttempts(Math.max(0, a.max_attempts - a.attempts_used));
     if (state.attempt) {
       setAttempt(state.attempt);
       setResultId(null);
@@ -398,15 +403,21 @@ export default function App() {
   async function signOut() {
     try { await api('/auth/logout',{method:'POST'}); }
     catch(e){setError(e.message);return;}
-    setUser(null);setQuiz(null);setAttempt(null);setResult(null);setResultId(null);
+    setUser(null);setQuiz(null);setAttempt(null);setResult(null);setResultId(null);setRemainingAttempts(0);
     setAdminData(null);setPage('overview');setError('');
   }
   async function start() {
     if (attempt) {setPage('quiz');return;}
+    if (remainingAttempts <= 0) {
+      if (resultId) await viewResult();
+      else {setError('No assessment attempts remain. Contact your assessor.');setPage('instructions');}
+      return;
+    }
     setBusy(true);setError('');
     try {
       const data = await api('/attempts',{method:'POST'});
       setAttempt(data.attempt);setCurrentIndex(0);setNow(Date.now());setPage('quiz');
+      if (!data.resumed) setRemainingAttempts(n => Math.max(0, n - 1));
       setResult(null);setResultId(null);
     } catch(e){
       if (e.status===409 && resultId) await viewResult();
@@ -465,7 +476,10 @@ export default function App() {
   }
   function navigate(id) {
     setError('');
-    if(id==='quiz') {setPage(attempt?'quiz':'instructions');return;}
+    if(id==='quiz') {
+      if (!attempt && remainingAttempts <= 0 && resultId) {viewResult();return;}
+      setPage(attempt?'quiz':'instructions');return;
+    }
     if(id==='result') {viewResult();return;}
     if(id==='admin') {setPage(id);refreshAdmin();return;}
     setPage(id);
@@ -486,14 +500,17 @@ export default function App() {
         {error && <div className="alert error page-error" role="alert"><Info size={18}/><span>{error}</span>
           <button className="icon-plain" onClick={()=>setError('')} aria-label="Dismiss"><X size={17}/></button></div>}
         {!quiz ? <div className="loading-card">No assessment available. Contact your assessor.</div> :
-          page==='overview'?<OverviewPage quiz={quiz} onStart={start} isResuming={Boolean(attempt)} hasResult={Boolean(resultId)} onResult={()=>viewResult()}/>:
-          page==='instructions'?<InstructionsPage quiz={quiz} onStart={start} isResuming={Boolean(attempt)}/>:
+          page==='overview'?<OverviewPage quiz={quiz} onStart={start} isResuming={Boolean(attempt)} hasResult={Boolean(resultId)}
+            onResult={()=>viewResult()} canStart={Boolean(attempt)||remainingAttempts>0}/>:
+          page==='instructions'?<InstructionsPage quiz={quiz} onStart={start} isResuming={Boolean(attempt)}
+            canStart={Boolean(attempt)||remainingAttempts>0} hasResult={Boolean(resultId)} onResult={()=>viewResult()}/>:
           page==='quiz'&&attempt?<QuizPage attempt={attempt} currentIndex={currentIndex} setCurrentIndex={setCurrentIndex}
               onAnswer={onAnswer} saving={saving} onSubmit={finalize} timeLeft={timeLeft} submitting={busy}/>:
           page==='result'?<ResultPage data={result} onOverview={()=>setPage('overview')} showReview={showReview}
-              setShowReview={setShowReview} onRetake={retake}/>:
+              setShowReview={setShowReview} onRetake={retake} canRetake={remainingAttempts>0}/>:
           page==='admin'&&user.is_staff?<AdminPage adminData={adminData} loading={busy} onRefresh={refreshAdmin}/>:
-          <InstructionsPage quiz={quiz} onStart={start} isResuming={Boolean(attempt)}/>}
+          <InstructionsPage quiz={quiz} onStart={start} isResuming={Boolean(attempt)}
+            canStart={Boolean(attempt)||remainingAttempts>0} hasResult={Boolean(resultId)} onResult={()=>viewResult()}/>}
       </main>
       <footer className="footer">DBA & Data Governance Assessment <span>© {new Date().getFullYear()} · Simplicity · Velocity · Efficiency</span></footer>
     </div>

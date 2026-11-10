@@ -117,7 +117,9 @@ def assessments(request):
     quiz = Quiz.objects.filter(published=True).prefetch_related("questions").first()
     if not quiz:
         return failure("No published assessment is available.", 404)
-    return JsonResponse({"assessment": quiz_summary(quiz), "max_attempts": settings.QUIZ_MAX_ATTEMPTS})
+    return JsonResponse({"assessment": quiz_summary(quiz),
+                         "max_attempts": settings.QUIZ_MAX_ATTEMPTS,
+                         "attempts_used": Attempt.objects.filter(user=request.user, quiz=quiz).count()})
 
 
 def snapshot_question(q):
