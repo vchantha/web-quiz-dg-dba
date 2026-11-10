@@ -150,6 +150,9 @@ docker compose up -d --force-recreate backend web
 docker compose ps
 docker compose logs --tail=80 backend
 root / PnzU2G3u80MR
+user1: B62HaI3l606O
+user2: J43ZGQ1u8he9
+user3: oNRcg7Q5z1pc
 ```
 
 **Do not run** `docker compose down -v`: it deletes the PostgreSQL volume and candidate data.
