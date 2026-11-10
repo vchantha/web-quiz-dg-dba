@@ -64,3 +64,15 @@ jobs:
       - run: cp .env.example .env
       - run: docker compose config --quiet
       - run: docker compose build
+      - name: Boot full application
+        run: docker compose up -d --wait --wait-timeout 150
+      - name: Smoke test API behind Nginx
+        run: |
+          curl --fail --silent --show-error http://127.0.0.1:8080/api/health | grep '"status": "ok"'
+          curl --fail --silent --show-error http://127.0.0.1:8080/api/auth/session | grep '"authenticated": false'
+      - name: Collect service logs on failure
+        if: failure()
+        run: docker compose logs --tail 200
+      - name: Stop stack
+        if: always()
+        run: docker compose down
