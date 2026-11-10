@@ -63,7 +63,19 @@ jobs:
       - uses: actions/checkout@v4
       - run: cp .env.example .env
       - run: docker compose config --quiet
+      - name: Simulate a Windows CRLF checkout
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          script = Path("backend/entrypoint.sh")
+          content = script.read_bytes().replace(b"\r\n", b"\n")
+          script.write_bytes(content.replace(b"\n", b"\r\n"))
+          assert b"\r\n" in script.read_bytes()
+          PY
       - run: docker compose build
+      - name: Verify script was normalized inside container
+        run: |
+          docker compose run --rm --no-deps backend python -c "from pathlib import Path; data=Path('/app/entrypoint.sh').read_bytes(); assert b'\r' not in data, 'entrypoint.sh still has CRLF'"
       - name: Boot full application
         run: docker compose up -d --wait --wait-timeout 150
       - name: Smoke test API behind Nginx

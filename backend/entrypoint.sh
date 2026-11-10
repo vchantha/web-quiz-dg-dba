@@ -1,4 +1,5 @@
 #!/bin/sh
+# Use LF line endings for Linux containers (also normalized in Dockerfile).
 set -eu
 python manage.py migrate --noinput
 python manage.py seed_quiz

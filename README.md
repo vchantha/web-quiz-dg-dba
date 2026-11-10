@@ -136,3 +136,19 @@ Vite proxies `/api` to Django for local development. Frontend build: `npm run bu
 ## Current boundaries
 
 This release includes the five requested candidate screens and core assessor workflow. For a larger hiring program, add invitation-email delivery, per-candidate invitation expiry, password reset/SSO, proctoring policy, private exam-bank delivery, structured retention jobs, application-level throttling, and end-to-end browser tests before exposing the service to untrusted public traffic.
+
+## Docker Desktop / Windows startup fix
+
+If the backend logs show `exec /app/entrypoint.sh: no such file or directory` while the Dockerfile copies the file successfully, the common cause is **Windows CRLF line endings**. The Linux interpreter can interpret `#!/bin/sh\r` as a nonexistent path. This repository now enforces LF for shell scripts, normalizes `entrypoint.sh` during the Docker image build, and invokes it via `/bin/sh`. CI also builds and starts the stack with a deliberately CRLF-converted entrypoint to prevent regressions.
+
+Update and rebuild the backend image without touching your persistent PostgreSQL volume:
+
+```bash
+git pull origin main
+docker compose build --no-cache backend
+docker compose up -d --force-recreate backend web
+docker compose ps
+docker compose logs --tail=80 backend
+```
+
+**Do not run** `docker compose down -v`: it deletes the PostgreSQL volume and candidate data.
