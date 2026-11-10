@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import Client, TestCase
 from django.utils import timezone
 
 from .models import Answer, Attempt, Question, Quiz
@@ -33,6 +33,36 @@ class AssessmentApiTests(TestCase):
             f"/api/attempts/{attempt_id}/answers/{question_id}",
             data=json.dumps({"selected_code": code}), content_type="application/json",
         )
+
+    def test_remote_ip_host_returns_json(self):
+        response = self.client.get("/api/auth/session", HTTP_HOST="192.0.2.24:8080")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/json")
+        self.assertTrue(response.json()["authenticated"])
+
+    def test_unapproved_domain_returns_json_error(self):
+        response = self.client.get("/api/auth/session", HTTP_HOST="unknown.example:8080")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response["Content-Type"], "application/json")
+        self.assertIn("error", response.json())
+
+    def test_login_csrf_with_server_ip_and_custom_port(self):
+        client = Client(enforce_csrf_checks=True)
+        host = "192.0.2.24:8080"
+        login_origin = "http://" + host
+        s = client.get("/api/auth/session", HTTP_HOST=host)
+        self.assertEqual(s.status_code, 200)
+        token = s.cookies["csrftoken"].value
+        response = client.post(
+            "/api/auth/login",
+            data=json.dumps({"username": self.candidate.username, "password": "candidate-pass-long"}),
+            content_type="application/json",
+            HTTP_HOST=host,
+            HTTP_ORIGIN=login_origin,
+            HTTP_X_CSRFTOKEN=token,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.json()["authenticated"])
 
     def test_question_bank_and_scoring_weights(self):
         self.assertEqual(Question.objects.filter(quiz=self.quiz).count(), 25)

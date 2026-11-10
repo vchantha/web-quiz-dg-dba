@@ -37,7 +37,7 @@ services:
     build: ./frontend
     restart: unless-stopped
     ports:
-      - "${QUIZ_HTTP_PORT:-8080}:80"
+      - "0.0.0.0:${QUIZ_HTTP_PORT:-8080}:80"
     depends_on:
       backend:
         condition: service_healthy

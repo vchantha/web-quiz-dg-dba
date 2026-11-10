@@ -82,6 +82,12 @@ jobs:
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8080/api/health | grep '"status": "ok"'
           curl --fail --silent --show-error http://127.0.0.1:8080/api/auth/session | grep '"authenticated": false'
+          # Reach the same published port with a public IPv4 Host header.
+          curl --fail --silent --show-error -H 'Host: 192.0.2.24:8080' http://127.0.0.1:8080/api/auth/session | grep '"authenticated": false'
+          # Unknown DNS hostnames must not bypass host validation.
+          code=$(curl -sS -o invalid-host.json -w '%{http_code}' -H 'Host: unknown.example:8080' http://127.0.0.1:8080/api/auth/session)
+          test "$code" = 400
+          grep '"error":' invalid-host.json
       - name: Collect service logs on failure
         if: failure()
         run: docker compose logs --tail 200
